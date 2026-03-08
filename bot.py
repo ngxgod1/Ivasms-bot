@@ -1,0 +1,183 @@
+import asyncio
+import websockets
+import json
+import requests
+import re
+import time
+
+BOT_TOKEN = "8642429610:AAFFllSv1R4k7hP3f69jIm2a46eNw_LIlE0"
+CHAT_ID = "-1003738647478"
+
+WS_URL = "wss://ivas.tempnum.qzz.io:2087/socket.io/?token=eyJpdiI6Inh1WTlNVTRrT1l2WFRuOWVrV09ZVmc9PSIsInZhbHVlIjoieGFRcWdEWXVlWlN6RUJaazBxR0srSzI0UENFU08zMlNMNlRSbXhUQnlVNnBNS25IYmVaZW5TQXVubVpBOXdWRVNFY3JzY2E4SkdEeXRCZ0RmMWhiK2duR0VQc05OS3VWSURsR1pYb29sUU5vK0htUkZJS3IyRGluajQxNEoyak9uWTVIeENGT2RIR2I1SFdMdk1naHEwRDY5NTZuWktLZ3FYNDlHYVlDWHFHdmE0R3lUT2tFMjB6czcvN2h6SHo0UE1rZG9BSDJOVnJldUlDMDF4RGRjU2V1VUFGT1g3NzhzSSsxcm9rSXZBN2F4ZzNlMHNScnltRHRaUGp4TTM0dUo3WEF1Z1RTNng0Rk5qSGhGSEFMSGlocmM0Unc5NVVzREc2QSszc0FZUnhlVE1kelBESzJuUWxZRzVHNlp2elVqbWtqYTA3ZjN3ZnEydmtpdmRFVVZFK21pcUlkdWd4Vmo3L1M5RDZwRGtmbmV5T0FQbXd2a0xFNWxCdFdOOThOS1lodFdKcVRuRHJnZ1JnV1kzTkxtaW1NOWMyZ0paVjRDZndHSzFaYlJ0SFNmL1VRQVdDbTJrMlZoUkptaGZZS09Jd2h6STBDQ1JmY3lRZVF3WnRidXQ4TnhsTlU1YmEvbjFpRXlydG1lUGNKakozcEVyNnl2MHREU2NNRHNKVWNNdkZnVDBqbndnQ2xTdU1RbnVWNXJBPT0iLCJtYWMiOiJhMzhhZTFjMzZiNDM3ODc2YjNlOWUyZjcxMzZhYzg0YjJhMjA0MTQ5MjQwNTVhMzBhYjZkZjExZGE1YjlkYjJkIiwidGFnIjoiIn0%3D&user=febed320dee42f56634412749978c9f5&EIO=4&transport=websocket"
+
+sent_otps = set()
+
+
+def extract_otp(msg):
+
+    m = re.search(r"\d{3}[- ]?\d{3}", msg)
+    if m:
+        return m.group(0)
+
+    m = re.search(r"\d{4,6}", msg)
+    if m:
+        return m.group(0)
+
+    return None
+
+
+def mask_number(num):
+
+    num = re.sub(r"\D", "", num)
+
+    if len(num) < 6:
+        return num
+
+    return f"{num[:3]}XXXX{num[-3:]}"
+
+
+def detect_service(msg):
+
+    m = msg.lower()
+
+    if "whatsapp" in m:
+        return "🟢 WP"
+
+    if "telegram" in m:
+        return "🔵 TG"
+
+    if "google" in m:
+        return "🔴 GOOGLE"
+
+    if "facebook" in m:
+        return "🔵 FB"
+
+    return "📩 OTP"
+
+
+def detect_language(msg):
+
+    if re.search(r"[\u0600-\u06FF]", msg):
+        return "#Arabic"
+
+    return "#English"
+
+
+def get_flag(num):
+
+    if num.startswith("225"):
+        return "🇨🇮"
+
+    if num.startswith("229"):
+        return "🇧🇯"
+
+    if num.startswith("234"):
+        return "🇳🇬"
+
+    if num.startswith("49"):
+        return "🇩🇪"
+
+    if num.startswith("91"):
+        return "🇮🇳"
+
+    return "🌍"
+
+
+def send_message(text, otp):
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": text,
+        "reply_markup": {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": f"🔑 {otp}",
+                        "callback_data": otp
+                    }
+                ]
+            ]
+        }
+    }
+
+    requests.post(url, json=payload)
+
+
+async def ping(ws, interval):
+
+    while True:
+
+        await asyncio.sleep(interval / 1000)
+
+        try:
+            await ws.send("3")
+        except:
+            break
+
+
+async def start():
+
+    while True:
+
+        try:
+
+            async with websockets.connect(WS_URL, ping_interval=None) as ws:
+
+                print("✅ Connected IVAS")
+
+                msg = await ws.recv()
+
+                interval = 25000
+
+                if msg.startswith("0{"):
+                    data = json.loads(msg[1:])
+                    interval = data.get("pingInterval", 25000)
+
+                await ws.send("40/livesms,")
+
+                asyncio.create_task(ping(ws, interval))
+
+                while True:
+
+                    data = await ws.recv()
+
+                    if data.startswith("42/livesms,"):
+
+                        payload = json.loads(data[data.find("["):])
+
+                        sms = payload[1]
+
+                        message = sms.get("message", "")
+                        number = sms.get("recipient", "")
+
+                        otp = extract_otp(message)
+
+                        if not otp:
+                            continue
+
+                        if otp in sent_otps:
+                            continue
+
+                        sent_otps.add(otp)
+
+                        service = detect_service(message)
+                        flag = get_flag(number)
+                        masked = mask_number(number)
+                        lang = detect_language(message)
+
+                        text = f"{service} | {flag} {masked} {lang}"
+
+                        send_message(text, otp)
+
+                        print("📩 OTP SENT")
+
+        except Exception as e:
+
+            print("⚠ reconnecting...", e)
+
+            time.sleep(5)
+
+
+asyncio.run(start())
