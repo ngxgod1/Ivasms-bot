@@ -18,13 +18,13 @@ sent_otps = set()
 
 def extract_otp(msg):
 
-    m = re.search(r"\d{3}[- ]?\d{3}", msg)
+    m = re.search(r"\d{3}-\d{3}", msg)
     if m:
-        return m.group(0)
+        return m.group()
 
     m = re.search(r"\d{4,6}", msg)
     if m:
-        return m.group(0)
+        return m.group()
 
     return None
 
@@ -47,13 +47,16 @@ def detect_service(msg):
         return "🟢 WhatsApp"
 
     if "telegram" in m:
-        return "🔵 Telegram"
+        return "✈️ Telegram"
+
+    if "facebook" in m:
+        return "📘 Facebook"
 
     if "google" in m:
         return "🔴 Google"
 
-    if "facebook" in m:
-        return "🔵 Facebook"
+    if "instagram" in m:
+        return "📷 Instagram"
 
     return "📩 OTP"
 
@@ -61,17 +64,12 @@ def detect_service(msg):
 def get_country(number):
 
     try:
-
         num = phonenumbers.parse("+" + number)
         country = geocoder.description_for_number(num, "en")
         region = phonenumbers.region_code_for_number(num)
-
         flag = "".join(chr(127397 + ord(c)) for c in region)
-
         return country, flag
-
     except:
-
         return "Unknown", "🌍"
 
 
@@ -87,7 +85,7 @@ def send_message(country, flag, service, number, otp, fullmsg):
 
 🌍 Country: {country}
 
-🟢 Service: {service}
+📲 Service: {service}
 
 📞 Number: {number}
 
@@ -111,9 +109,6 @@ def send_message(country, flag, service, number, otp, fullmsg):
         "reply_markup": {
             "inline_keyboard": [
                 [
-                    {"text": "📋 COPY CODE", "callback_data": otp}
-                ],
-                [
                     {"text": "🏛 Number", "url": "https://t.me/NumOTPV2BOT"},
                     {"text": "👾 Developer", "url": "https://t.me/ngxgod1"}
                 ],
@@ -131,9 +126,7 @@ def send_message(country, flag, service, number, otp, fullmsg):
 async def ping(ws, interval):
 
     while True:
-
         await asyncio.sleep(interval / 1000)
-
         try:
             await ws.send("3")
         except:
@@ -155,7 +148,6 @@ async def start():
                 interval = 25000
 
                 if msg.startswith("0{"):
-
                     data = json.loads(msg[1:])
                     interval = data.get("pingInterval", 25000)
 
@@ -205,7 +197,7 @@ async def start():
 
         except Exception as e:
 
-            print("reconnecting...", e)
+            print("Reconnecting...", e)
 
             time.sleep(5)
 
