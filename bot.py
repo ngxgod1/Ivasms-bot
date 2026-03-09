@@ -4,6 +4,9 @@ import json
 import requests
 import re
 import time
+from datetime import datetime
+import phonenumbers
+from phonenumbers import geocoder
 
 BOT_TOKEN = "8642429610:AAFFllSv1R4k7hP3f69jIm2a46eNw_LIlE0"
 CHAT_ID = "-1003738647478"
@@ -41,62 +44,82 @@ def detect_service(msg):
     m = msg.lower()
 
     if "whatsapp" in m:
-        return "🟢 WP"
+        return "🟢 WhatsApp"
 
     if "telegram" in m:
-        return "🔵 TG"
+        return "🔵 Telegram"
 
     if "google" in m:
-        return "🔴 GOOGLE"
+        return "🔴 Google"
 
     if "facebook" in m:
-        return "🔵 FB"
+        return "🔵 Facebook"
 
     return "📩 OTP"
 
 
-def detect_language(msg):
+def get_country(number):
 
-    if re.search(r"[\u0600-\u06FF]", msg):
-        return "#Arabic"
+    try:
 
-    return "#English"
+        num = phonenumbers.parse("+" + number)
+        country = geocoder.description_for_number(num, "en")
+        region = phonenumbers.region_code_for_number(num)
 
+        flag = "".join(chr(127397 + ord(c)) for c in region)
 
-def get_flag(num):
+        return country, flag
 
-    if num.startswith("225"):
-        return "🇨🇮"
+    except:
 
-    if num.startswith("229"):
-        return "🇧🇯"
-
-    if num.startswith("234"):
-        return "🇳🇬"
-
-    if num.startswith("49"):
-        return "🇩🇪"
-
-    if num.startswith("91"):
-        return "🇮🇳"
-
-    return "🌍"
+        return "Unknown", "🌍"
 
 
-def send_message(text, otp):
+def send_message(country, flag, service, number, otp, fullmsg):
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    text = f"""
+<b>{flag} New {country} {service} OTP !</b>
+
+<blockquote>
+⏰ Time: {now}
+
+🌍 Country: {country}
+
+🟢 Service: {service}
+
+📞 Number: {number}
+
+🔑 OTP: <code>{otp}</code>
+</blockquote>
+
+📩 <b>Full Message:</b>
+
+<blockquote>{fullmsg}</blockquote>
+
+━━━━━━━━━━━━━━
+<b>Powered By LUCKY 👑</b>
+"""
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     payload = {
         "chat_id": CHAT_ID,
         "text": text,
+        "parse_mode": "HTML",
         "reply_markup": {
             "inline_keyboard": [
                 [
-                    {
-                        "text": f"🔑 {otp}",
-                        "callback_data": otp
-                    }
+                    {"text": "📋 COPY CODE", "callback_data": otp}
+                ],
+                [
+                    {"text": "🏛 Number", "url": "https://t.me/NumOTPV2BOT"},
+                    {"text": "👾 Developer", "url": "https://t.me/ngxgod1"}
+                ],
+                [
+                    {"text": "📢 Channel", "url": "https://t.me/TeamOFDark1"},
+                    {"text": "🟢 OTP", "url": "https://t.me/forwardforme1"}
                 ]
             ]
         }
@@ -132,6 +155,7 @@ async def start():
                 interval = 25000
 
                 if msg.startswith("0{"):
+
                     data = json.loads(msg[1:])
                     interval = data.get("pingInterval", 25000)
 
@@ -163,19 +187,25 @@ async def start():
                         sent_otps.add(otp)
 
                         service = detect_service(message)
-                        flag = get_flag(number)
+
+                        country, flag = get_country(number)
+
                         masked = mask_number(number)
-                        lang = detect_language(message)
 
-                        text = f"{service} | {flag} {masked} {lang}"
+                        send_message(
+                            country,
+                            flag,
+                            service,
+                            masked,
+                            otp,
+                            message
+                        )
 
-                        send_message(text, otp)
-
-                        print("📩 OTP SENT")
+                        print("OTP SENT")
 
         except Exception as e:
 
-            print("⚠ reconnecting...", e)
+            print("reconnecting...", e)
 
             time.sleep(5)
 
