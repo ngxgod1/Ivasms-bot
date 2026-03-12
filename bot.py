@@ -2,13 +2,11 @@ import asyncio
 import websockets
 import json
 import re
+import requests
 import time
 from datetime import datetime
 import phonenumbers
 from phonenumbers import geocoder
-
-from telegram import InlineKeyboardButton, CopyTextButton
-from telegram.ext import ApplicationBuilder
 
 BOT_TOKEN = "8642429610:AAFFllSv1R4k7hP3f69jIm2a46eNw_LIlE0"
 CHAT_ID = "-1003755474546"
@@ -18,34 +16,26 @@ WS_URL = "wss://ivas.tempnum.qzz.io:2087/socket.io/?token=eyJpdiI6Inh1WTlNVTRrT1
 sent = set()
 
 
-def copy_button(text, copy_text, color="success", emoji=None):
-
-    return InlineKeyboardButton(
-        text=text,
-        copy_text=CopyTextButton(copy_text),
-        api_kwargs={
-            "style": color,
-            "icon_custom_emoji_id": emoji
-        }
-    )
-
-
 def extract_otp(msg):
 
     m = re.search(r"\d{3}-\d{3}", msg)
     if m:
         return m.group()
 
-    m = re.search(r"\d{4,6}", msg)
+    m = re.search(r"\d{6}", msg)
+    if m:
+        return m.group()
+
+    m = re.search(r"\d{4}", msg)
     if m:
         return m.group()
 
     return None
 
 
-def mask_number(num):
+def mask(num):
 
-    num = re.sub(r"\D", "", num)
+    num = re.sub(r"\D","",num)
 
     if len(num) < 6:
         return num
@@ -72,30 +62,30 @@ def detect_service(msg):
     return "📩 OTP"
 
 
-def country_info(number):
+def country(number):
 
     try:
 
-        num = phonenumbers.parse("+" + number)
+        num = phonenumbers.parse("+"+number)
 
-        country = geocoder.description_for_number(num, "en")
+        c = geocoder.description_for_number(num,"en")
 
         region = phonenumbers.region_code_for_number(num)
 
-        flag = "".join(chr(127397 + ord(c)) for c in region)
+        flag = "".join(chr(127397 + ord(x)) for x in region)
 
-        return country, flag
+        return c,flag
 
     except:
 
-        return "Unknown", "🌍"
+        return "Unknown","🌍"
 
 
-async def send_message(app, country, flag, service, number, otp, msg):
+def send(country,flag,service,number,otp,msg):
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    text = f"""
+    text=f"""
 <b>{flag} New {country} {service} OTP !</b>
 
 <blockquote>
@@ -118,67 +108,60 @@ async def send_message(app, country, flag, service, number, otp, msg):
 <b>Powered By LUCKY 👑</b>
 """
 
-    keyboard = [
+    url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-        [copy_button("📋 COPY OTP", otp)],
+    payload={
+        "chat_id":CHAT_ID,
+        "text":text,
+        "parse_mode":"HTML",
+        "reply_markup":{
+            "inline_keyboard":[
 
-        [
-            InlineKeyboardButton("🏛 Number", url="https://t.me/NumOTPV2BOT"),
-            InlineKeyboardButton("👾 Developer", url="https://t.me/ngxgod1")
-        ],
+                [
+                    {"text":"🏛 Number","url":"https://t.me/NumOTPV2BOT"},
+                    {"text":"👾 Developer","url":"https://t.me/ngxgod1"}
+                ],
 
-        [
-            InlineKeyboardButton("📢 Channel", url="https://t.me/TeamOFDark1"),
-            InlineKeyboardButton("🟢 OTP", url="https://t.me/forwardforme1")
-        ]
+                [
+                    {"text":"📢 Channel","url":"https://t.me/TeamOFDark1"},
+                    {"text":"🟢 OTP","url":"https://t.me/forwardforme1"}
+                ]
 
-    ]
+            ]
+        }
+    }
 
-    await app.bot.send_message(
-
-        chat_id=CHAT_ID,
-        text=text,
-        parse_mode="HTML",
-        reply_markup={"inline_keyboard": keyboard}
-
-    )
+    requests.post(url,json=payload)
 
 
-async def run(app):
+async def start():
 
     while True:
 
         try:
 
-            async with websockets.connect(WS_URL, ping_interval=None) as ws:
+            async with websockets.connect(WS_URL,ping_interval=None) as ws:
 
                 print("Connected IVAS")
 
-                msg = await ws.recv()
-
-                interval = 25000
-
-                if msg.startswith("0{"):
-
-                    data = json.loads(msg[1:])
-                    interval = data.get("pingInterval", 25000)
+                msg=await ws.recv()
 
                 await ws.send("40/livesms,")
 
                 while True:
 
-                    data = await ws.recv()
+                    data=await ws.recv()
 
                     if data.startswith("42/livesms,"):
 
-                        payload = json.loads(data[data.find("["):])
+                        payload=json.loads(data[data.find("["):])
 
-                        sms = payload[1]
+                        sms=payload[1]
 
-                        message = sms.get("message", "")
-                        number = sms.get("recipient", "")
+                        message=sms.get("message","")
+                        number=sms.get("recipient","")
 
-                        otp = extract_otp(message)
+                        otp=extract_otp(message)
 
                         if not otp:
                             continue
@@ -188,34 +171,21 @@ async def run(app):
 
                         sent.add(otp)
 
-                        service = detect_service(message)
+                        service=detect_service(message)
 
-                        country, flag = country_info(number)
+                        c,flag=country(number)
 
-                        number = mask_number(number)
+                        number=mask(number)
 
-                        await send_message(
-                            app,
-                            country,
-                            flag,
-                            service,
-                            number,
-                            otp,
-                            message
-                        )
+                        send(c,flag,service,number,otp,message)
+
+                        print("OTP SENT")
 
         except Exception as e:
 
-            print("Reconnect...", e)
+            print("Reconnect...",e)
 
             time.sleep(5)
 
 
-async def main():
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    await run(app)
-
-
-asyncio.run(main())
+asyncio.run(start())
