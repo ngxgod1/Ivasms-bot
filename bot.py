@@ -13,20 +13,20 @@ CHAT_ID = "-1003755474546"
 
 WS_URL = "wss://ivas.tempnum.qzz.io:2087/socket.io/?token=eyJpdiI6Inh1WTlNVTRrT1l2WFRuOWVrV09ZVmc9PSIsInZhbHVlIjoieGFRcWdEWXVlWlN6RUJaazBxR0srSzI0UENFU08zMlNMNlRSbXhUQnlVNnBNS25IYmVaZW5TQXVubVpBOXdWRVNFY3JzY2E4SkdEeXRCZ0RmMWhiK2duR0VQc05OS3VWSURsR1pYb29sUU5vK0htUkZJS3IyRGluajQxNEoyak9uWTVIeENGT2RIR2I1SFdMdk1naHEwRDY5NTZuWktLZ3FYNDlHYVlDWHFHdmE0R3lUT2tFMjB6czcvN2h6SHo0UE1rZG9BSDJOVnJldUlDMDF4RGRjU2V1VUFGT1g3NzhzSSsxcm9rSXZBN2F4ZzNlMHNScnltRHRaUGp4TTM0dUo3WEF1Z1RTNng0Rk5qSGhGSEFMSGlocmM0Unc5NVVzREc2QSszc0FZUnhlVE1kelBESzJuUWxZRzVHNlp2elVqbWtqYTA3ZjN3ZnEydmtpdmRFVVZFK21pcUlkdWd4Vmo3L1M5RDZwRGtmbmV5T0FQbXd2a0xFNWxCdFdOOThOS1lodFdKcVRuRHJnZ1JnV1kzTkxtaW1NOWMyZ0paVjRDZndHSzFaYlJ0SFNmL1VRQVdDbTJrMlZoUkptaGZZS09Jd2h6STBDQ1JmY3lRZVF3WnRidXQ4TnhsTlU1YmEvbjFpRXlydG1lUGNKakozcEVyNnl2MHREU2NNRHNKVWNNdkZnVDBqbndnQ2xTdU1RbnVWNXJBPT0iLCJtYWMiOiJhMzhhZTFjMzZiNDM3ODc2YjNlOWUyZjcxMzZhYzg0YjJhMjA0MTQ5MjQwNTVhMzBhYjZkZjExZGE1YjlkYjJkIiwidGFnIjoiIn0%3D&user=febed320dee42f56634412749978c9f5&EIO=4&transport=websocket"
 
-sent = set()
+sent=set()
 
 
 def extract_otp(msg):
 
-    m = re.search(r"\d{3}-\d{3}", msg)
+    m=re.search(r"\d{3}-\d{3}",msg)
     if m:
         return m.group()
 
-    m = re.search(r"\d{6}", msg)
+    m=re.search(r"\d{6}",msg)
     if m:
         return m.group()
 
-    m = re.search(r"\d{4}", msg)
+    m=re.search(r"\d{4}",msg)
     if m:
         return m.group()
 
@@ -35,9 +35,9 @@ def extract_otp(msg):
 
 def mask(num):
 
-    num = re.sub(r"\D","",num)
+    num=re.sub(r"\D","",num)
 
-    if len(num) < 6:
+    if len(num)<6:
         return num
 
     return f"{num[:3]}XXXX{num[-3:]}"
@@ -45,7 +45,7 @@ def mask(num):
 
 def detect_service(msg):
 
-    m = msg.lower()
+    m=msg.lower()
 
     if "whatsapp" in m:
         return "🟢 WhatsApp"
@@ -66,13 +66,13 @@ def country(number):
 
     try:
 
-        num = phonenumbers.parse("+"+number)
+        num=phonenumbers.parse("+"+number)
 
-        c = geocoder.description_for_number(num,"en")
+        c=geocoder.description_for_number(num,"en")
 
-        region = phonenumbers.region_code_for_number(num)
+        region=phonenumbers.region_code_for_number(num)
 
-        flag = "".join(chr(127397 + ord(x)) for x in region)
+        flag="".join(chr(127397+ord(x)) for x in region)
 
         return c,flag
 
@@ -83,7 +83,7 @@ def country(number):
 
 def send(country,flag,service,number,otp,msg):
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     text=f"""
 <b>{flag} New {country} {service} OTP !</b>
@@ -134,6 +134,18 @@ def send(country,flag,service,number,otp,msg):
     requests.post(url,json=payload)
 
 
+async def ping(ws):
+
+    while True:
+
+        await asyncio.sleep(20)
+
+        try:
+            await ws.send("3")
+        except:
+            break
+
+
 async def start():
 
     while True:
@@ -148,11 +160,15 @@ async def start():
 
                 await ws.send("40/livesms,")
 
+                asyncio.create_task(ping(ws))
+
                 while True:
 
                     data=await ws.recv()
 
-                    if data.startswith("42/livesms,"):
+                    print("RAW:",data)
+
+                    if "livesms" in data:
 
                         payload=json.loads(data[data.find("["):])
 
