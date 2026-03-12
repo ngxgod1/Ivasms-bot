@@ -1,8 +1,8 @@
 import asyncio
 import websockets
 import json
-import re
 import requests
+import re
 import time
 from datetime import datetime
 import phonenumbers
@@ -13,31 +13,27 @@ CHAT_ID = "-1003755474546"
 
 WS_URL = "wss://ivas.tempnum.qzz.io:2087/socket.io/?token=eyJpdiI6Inh1WTlNVTRrT1l2WFRuOWVrV09ZVmc9PSIsInZhbHVlIjoieGFRcWdEWXVlWlN6RUJaazBxR0srSzI0UENFU08zMlNMNlRSbXhUQnlVNnBNS25IYmVaZW5TQXVubVpBOXdWRVNFY3JzY2E4SkdEeXRCZ0RmMWhiK2duR0VQc05OS3VWSURsR1pYb29sUU5vK0htUkZJS3IyRGluajQxNEoyak9uWTVIeENGT2RIR2I1SFdMdk1naHEwRDY5NTZuWktLZ3FYNDlHYVlDWHFHdmE0R3lUT2tFMjB6czcvN2h6SHo0UE1rZG9BSDJOVnJldUlDMDF4RGRjU2V1VUFGT1g3NzhzSSsxcm9rSXZBN2F4ZzNlMHNScnltRHRaUGp4TTM0dUo3WEF1Z1RTNng0Rk5qSGhGSEFMSGlocmM0Unc5NVVzREc2QSszc0FZUnhlVE1kelBESzJuUWxZRzVHNlp2elVqbWtqYTA3ZjN3ZnEydmtpdmRFVVZFK21pcUlkdWd4Vmo3L1M5RDZwRGtmbmV5T0FQbXd2a0xFNWxCdFdOOThOS1lodFdKcVRuRHJnZ1JnV1kzTkxtaW1NOWMyZ0paVjRDZndHSzFaYlJ0SFNmL1VRQVdDbTJrMlZoUkptaGZZS09Jd2h6STBDQ1JmY3lRZVF3WnRidXQ4TnhsTlU1YmEvbjFpRXlydG1lUGNKakozcEVyNnl2MHREU2NNRHNKVWNNdkZnVDBqbndnQ2xTdU1RbnVWNXJBPT0iLCJtYWMiOiJhMzhhZTFjMzZiNDM3ODc2YjNlOWUyZjcxMzZhYzg0YjJhMjA0MTQ5MjQwNTVhMzBhYjZkZjExZGE1YjlkYjJkIiwidGFnIjoiIn0%3D&user=febed320dee42f56634412749978c9f5&EIO=4&transport=websocket"
 
-sent=set()
+sent_otps = set()
 
 
 def extract_otp(msg):
 
-    m=re.search(r"\d{3}-\d{3}",msg)
+    m = re.search(r"\d{3}[- ]?\d{3}", msg)
     if m:
-        return m.group()
+        return m.group(0)
 
-    m=re.search(r"\d{6}",msg)
+    m = re.search(r"\d{4,6}", msg)
     if m:
-        return m.group()
-
-    m=re.search(r"\d{4}",msg)
-    if m:
-        return m.group()
+        return m.group(0)
 
     return None
 
 
-def mask(num):
+def mask_number(num):
 
-    num=re.sub(r"\D","",num)
+    num = re.sub(r"\D", "", num)
 
-    if len(num)<6:
+    if len(num) < 6:
         return num
 
     return f"{num[:3]}XXXX{num[-3:]}"
@@ -45,47 +41,45 @@ def mask(num):
 
 def detect_service(msg):
 
-    m=msg.lower()
+    m = msg.lower()
 
     if "whatsapp" in m:
         return "🟢 WhatsApp"
 
     if "telegram" in m:
-        return "✈️ Telegram"
-
-    if "facebook" in m:
-        return "📘 Facebook"
+        return "🔵 Telegram"
 
     if "google" in m:
         return "🔴 Google"
 
+    if "facebook" in m:
+        return "🔵 Facebook"
+
     return "📩 OTP"
 
 
-def country(number):
+def get_country(number):
 
     try:
 
-        num=phonenumbers.parse("+"+number)
+        num = phonenumbers.parse("+" + number)
+        country = geocoder.description_for_number(num, "en")
+        region = phonenumbers.region_code_for_number(num)
 
-        c=geocoder.description_for_number(num,"en")
+        flag = "".join(chr(127397 + ord(c)) for c in region)
 
-        region=phonenumbers.region_code_for_number(num)
-
-        flag="".join(chr(127397+ord(x)) for x in region)
-
-        return c,flag
+        return country, flag
 
     except:
 
-        return "Unknown","🌍"
+        return "Unknown", "🌍"
 
 
-def send(country,flag,service,number,otp,msg):
+def send_message(country, flag, service, number, otp, fullmsg):
 
-    now=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    text=f"""
+    text = f"""
 <b>{flag} New {country} {service} OTP !</b>
 
 <blockquote>
@@ -93,7 +87,7 @@ def send(country,flag,service,number,otp,msg):
 
 🌍 Country: {country}
 
-📲 Service: {service}
+🟢 Service: {service}
 
 📞 Number: {number}
 
@@ -102,43 +96,43 @@ def send(country,flag,service,number,otp,msg):
 
 📩 <b>Full Message:</b>
 
-<blockquote>{msg}</blockquote>
+<blockquote>{fullmsg}</blockquote>
 
 ━━━━━━━━━━━━━━
 <b>Powered By LUCKY 👑</b>
 """
 
-    url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    payload={
-        "chat_id":CHAT_ID,
-        "text":text,
-        "parse_mode":"HTML",
-        "reply_markup":{
-            "inline_keyboard":[
-
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": {
+            "inline_keyboard": [
                 [
-                    {"text":"🏛 Number","url":"https://t.me/NumOTPV2BOT"},
-                    {"text":"👾 Developer","url":"https://t.me/ngxgod1"}
+                    {"text": "📋 COPY CODE", "callback_data": otp}
                 ],
-
                 [
-                    {"text":"📢 Channel","url":"https://t.me/TeamOFDark1"},
-                    {"text":"🟢 OTP","url":"https://t.me/forwardforme1"}
+                    {"text": "🏛 Number", "url": "https://t.me/NumOTPV2BOT"},
+                    {"text": "👾 Developer", "url": "https://t.me/ngxgod1"}
+                ],
+                [
+                    {"text": "📢 Channel", "url": "https://t.me/TeamOFDark1"},
+                    {"text": "🟢 OTP", "url": "https://t.me/forwardforme1"}
                 ]
-
             ]
         }
     }
 
-    requests.post(url,json=payload)
+    requests.post(url, json=payload)
 
 
-async def ping(ws):
+async def ping(ws, interval):
 
     while True:
 
-        await asyncio.sleep(20)
+        await asyncio.sleep(interval / 1000)
 
         try:
             await ws.send("3")
@@ -152,54 +146,66 @@ async def start():
 
         try:
 
-            async with websockets.connect(WS_URL,ping_interval=None) as ws:
+            async with websockets.connect(WS_URL, ping_interval=None) as ws:
 
-                print("Connected IVAS")
+                print("✅ Connected IVAS")
 
-                msg=await ws.recv()
+                msg = await ws.recv()
+
+                interval = 25000
+
+                if msg.startswith("0{"):
+
+                    data = json.loads(msg[1:])
+                    interval = data.get("pingInterval", 25000)
 
                 await ws.send("40/livesms,")
 
-                asyncio.create_task(ping(ws))
+                asyncio.create_task(ping(ws, interval))
 
                 while True:
 
-                    data=await ws.recv()
+                    data = await ws.recv()
 
-                    print("RAW:",data)
+                    if data.startswith("42/livesms,"):
 
-                    if "livesms" in data:
+                        payload = json.loads(data[data.find("["):])
 
-                        payload=json.loads(data[data.find("["):])
+                        sms = payload[1]
 
-                        sms=payload[1]
+                        message = sms.get("message", "")
+                        number = sms.get("recipient", "")
 
-                        message=sms.get("message","")
-                        number=sms.get("recipient","")
-
-                        otp=extract_otp(message)
+                        otp = extract_otp(message)
 
                         if not otp:
                             continue
 
-                        if otp in sent:
+                        if otp in sent_otps:
                             continue
 
-                        sent.add(otp)
+                        sent_otps.add(otp)
 
-                        service=detect_service(message)
+                        service = detect_service(message)
 
-                        c,flag=country(number)
+                        country, flag = get_country(number)
 
-                        number=mask(number)
+                        masked = mask_number(number)
 
-                        send(c,flag,service,number,otp,message)
+                        send_message(
+                            country,
+                            flag,
+                            service,
+                            masked,
+                            otp,
+                            message
+                        )
 
                         print("OTP SENT")
 
         except Exception as e:
 
-            print("Reconnect...",e)
+            print("reconnecting...", e)
 
             time.sleep(5)
 
