@@ -1,19 +1,33 @@
 import asyncio
 import websockets
 import json
-import requests
 import re
 import time
 from datetime import datetime
 import phonenumbers
 from phonenumbers import geocoder
 
+from telegram import InlineKeyboardButton, CopyTextButton
+from telegram.ext import ApplicationBuilder
+
 BOT_TOKEN = "8642429610:AAFFllSv1R4k7hP3f69jIm2a46eNw_LIlE0"
 CHAT_ID = "-1003755474546"
 
 WS_URL = "wss://ivas.tempnum.qzz.io:2087/socket.io/?token=eyJpdiI6Inh1WTlNVTRrT1l2WFRuOWVrV09ZVmc9PSIsInZhbHVlIjoieGFRcWdEWXVlWlN6RUJaazBxR0srSzI0UENFU08zMlNMNlRSbXhUQnlVNnBNS25IYmVaZW5TQXVubVpBOXdWRVNFY3JzY2E4SkdEeXRCZ0RmMWhiK2duR0VQc05OS3VWSURsR1pYb29sUU5vK0htUkZJS3IyRGluajQxNEoyak9uWTVIeENGT2RIR2I1SFdMdk1naHEwRDY5NTZuWktLZ3FYNDlHYVlDWHFHdmE0R3lUT2tFMjB6czcvN2h6SHo0UE1rZG9BSDJOVnJldUlDMDF4RGRjU2V1VUFGT1g3NzhzSSsxcm9rSXZBN2F4ZzNlMHNScnltRHRaUGp4TTM0dUo3WEF1Z1RTNng0Rk5qSGhGSEFMSGlocmM0Unc5NVVzREc2QSszc0FZUnhlVE1kelBESzJuUWxZRzVHNlp2elVqbWtqYTA3ZjN3ZnEydmtpdmRFVVZFK21pcUlkdWd4Vmo3L1M5RDZwRGtmbmV5T0FQbXd2a0xFNWxCdFdOOThOS1lodFdKcVRuRHJnZ1JnV1kzTkxtaW1NOWMyZ0paVjRDZndHSzFaYlJ0SFNmL1VRQVdDbTJrMlZoUkptaGZZS09Jd2h6STBDQ1JmY3lRZVF3WnRidXQ4TnhsTlU1YmEvbjFpRXlydG1lUGNKakozcEVyNnl2MHREU2NNRHNKVWNNdkZnVDBqbndnQ2xTdU1RbnVWNXJBPT0iLCJtYWMiOiJhMzhhZTFjMzZiNDM3ODc2YjNlOWUyZjcxMzZhYzg0YjJhMjA0MTQ5MjQwNTVhMzBhYjZkZjExZGE1YjlkYjJkIiwidGFnIjoiIn0%3D&user=febed320dee42f56634412749978c9f5&EIO=4&transport=websocket"
 
-sent_otps = set()
+sent = set()
+
+
+def copy_button(text, copy_text, color="success", emoji=None):
+
+    return InlineKeyboardButton(
+        text=text,
+        copy_text=CopyTextButton(copy_text),
+        api_kwargs={
+            "style": color,
+            "icon_custom_emoji_id": emoji
+        }
+    )
 
 
 def extract_otp(msg):
@@ -55,25 +69,29 @@ def detect_service(msg):
     if "google" in m:
         return "🔴 Google"
 
-    if "instagram" in m:
-        return "📷 Instagram"
-
     return "📩 OTP"
 
 
-def get_country(number):
+def country_info(number):
 
     try:
+
         num = phonenumbers.parse("+" + number)
+
         country = geocoder.description_for_number(num, "en")
+
         region = phonenumbers.region_code_for_number(num)
+
         flag = "".join(chr(127397 + ord(c)) for c in region)
+
         return country, flag
+
     except:
+
         return "Unknown", "🌍"
 
 
-def send_message(country, flag, service, number, otp, fullmsg):
+async def send_message(app, country, flag, service, number, otp, msg):
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -94,46 +112,39 @@ def send_message(country, flag, service, number, otp, fullmsg):
 
 📩 <b>Full Message:</b>
 
-<blockquote>{fullmsg}</blockquote>
+<blockquote>{msg}</blockquote>
 
 ━━━━━━━━━━━━━━
 <b>Powered By LUCKY 👑</b>
 """
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    keyboard = [
 
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML",
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {"text": "🏛 Number", "url": "https://t.me/NumOTPV2BOT"},
-                    {"text": "👾 Developer", "url": "https://t.me/ngxgod1"}
-                ],
-                [
-                    {"text": "📢 Channel", "url": "https://t.me/TeamOFDark1"},
-                    {"text": "🟢 OTP", "url": "https://t.me/forwardforme1"}
-                ]
-            ]
-        }
-    }
+        [copy_button("📋 COPY OTP", otp)],
 
-    requests.post(url, json=payload)
+        [
+            InlineKeyboardButton("🏛 Number", url="https://t.me/NumOTPV2BOT"),
+            InlineKeyboardButton("👾 Developer", url="https://t.me/ngxgod1")
+        ],
 
+        [
+            InlineKeyboardButton("📢 Channel", url="https://t.me/TeamOFDark1"),
+            InlineKeyboardButton("🟢 OTP", url="https://t.me/forwardforme1")
+        ]
 
-async def ping(ws, interval):
+    ]
 
-    while True:
-        await asyncio.sleep(interval / 1000)
-        try:
-            await ws.send("3")
-        except:
-            break
+    await app.bot.send_message(
+
+        chat_id=CHAT_ID,
+        text=text,
+        parse_mode="HTML",
+        reply_markup={"inline_keyboard": keyboard}
+
+    )
 
 
-async def start():
+async def run(app):
 
     while True:
 
@@ -141,19 +152,18 @@ async def start():
 
             async with websockets.connect(WS_URL, ping_interval=None) as ws:
 
-                print("✅ Connected IVAS")
+                print("Connected IVAS")
 
                 msg = await ws.recv()
 
                 interval = 25000
 
                 if msg.startswith("0{"):
+
                     data = json.loads(msg[1:])
                     interval = data.get("pingInterval", 25000)
 
                 await ws.send("40/livesms,")
-
-                asyncio.create_task(ping(ws, interval))
 
                 while True:
 
@@ -173,33 +183,39 @@ async def start():
                         if not otp:
                             continue
 
-                        if otp in sent_otps:
+                        if otp in sent:
                             continue
 
-                        sent_otps.add(otp)
+                        sent.add(otp)
 
                         service = detect_service(message)
 
-                        country, flag = get_country(number)
+                        country, flag = country_info(number)
 
-                        masked = mask_number(number)
+                        number = mask_number(number)
 
-                        send_message(
+                        await send_message(
+                            app,
                             country,
                             flag,
                             service,
-                            masked,
+                            number,
                             otp,
                             message
                         )
 
-                        print("OTP SENT")
-
         except Exception as e:
 
-            print("Reconnecting...", e)
+            print("Reconnect...", e)
 
             time.sleep(5)
 
 
-asyncio.run(start())
+async def main():
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    await run(app)
+
+
+asyncio.run(main())
