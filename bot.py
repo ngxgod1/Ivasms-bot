@@ -109,12 +109,12 @@ def send_message(country, flag, service, number, otp, fullmsg):
         "reply_markup": {
             "inline_keyboard": [
                 [
-                    {"text": "🏛 Number", "url": "https://t.me/NumOTPV2BOT"},
+                    {"text": "🏛 Number", "url": "https://t.me/TempHub_Official"},
                     {"text": "👾 Developer", "url": "https://t.me/ngxgod1"}
                 ],
                 [
-                    {"text": "📢 Channel", "url": "https://t.me/TeamOFDark1"},
-                    {"text": "🟢 OTP", "url": "https://t.me/forwardforme1"}
+                    {"text": "📢 Channel", "url": "https://t.me/TempHub_Official"},
+                    {"text": "🟢 OTP", "url": "https://t.me/TempHubOtp"}
                 ]
             ]
         }
