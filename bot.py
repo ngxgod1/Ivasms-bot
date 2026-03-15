@@ -9,7 +9,7 @@ from datetime import datetime
 import phonenumbers
 from phonenumbers import geocoder
 
-BOT_TOKEN = "8161605259:AAF--gXMcuiH4EySJij5f_UhT5oNZ-h--Qc"
+BOT_TOKEN = "8642429610:AAFFllSv1R4k7hP3f69jIm2a46eNw_LIlE0"
 CHAT_ID = "-1003490266581"
 
 # ===== CUSTOM EMOJI IDS (bot (12).py se copy) =====
